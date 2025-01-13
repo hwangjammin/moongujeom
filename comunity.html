@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문구점 - 학생 커뮤니티</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+            color: #333;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        nav {
+            background-color: #333;
+            color: white;
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 0.5rem;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        main {
+            flex: 1;
+            padding: 1rem;
+        }
+        .content {
+            background: #ffffff;
+            padding: 1rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+        footer {
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        h2 {
+            color: #4CAF50;
+        }
+        .post {
+            border-bottom: 1px solid #ddd;
+            padding: 0.5rem 0;
+        }
+        .post:last-child {
+            border-bottom: none;
+        }
+        .post h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        .post p {
+            margin: 0.5rem 0 0;
+            font-size: 0.9rem;
+            color: #555;
+            display: none;
+        }
+        .post small {
+            display: block;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            z-index: 1000;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal.active {
+            display: block;
+        }
+        .modal-header {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .modal-footer {
+            margin-top: 1rem;
+            text-align: right;
+        }
+        .modal input {
+            width: 100%;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .modal button {
+            width: 100%;
+            padding: 0.7rem;
+            margin-top: 0.5rem;
+            font-size: 1rem;
+        }
+        .modal .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #888;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .overlay.active {
+            display: block;
+        }
+        @media (max-width: 768px) {
+            .content {
+                flex: 1 1 100%;
+            }
+        }
+    </style>
+    <script>
+        let isLoggedIn = false;
+        let users = JSON.parse(localStorage.getItem('users')) || [{ username: "test", password: "1234" }];
+        let userProfile = JSON.parse(localStorage.getItem('userProfile')) || { username: "", posts: [] };
+        let allPosts = JSON.parse(localStorage.getItem('allPosts')) || [];
+
+        function saveData() {
+            localStorage.setItem('users', JSON.stringify(users));
+            localStorage.setItem('userProfile', JSON.stringify(userProfile));
+            localStorage.setItem('allPosts', JSON.stringify(allPosts));
+            localStorage.setItem('isLoggedIn', JSON.stringify(isLoggedIn));
+        }
+
+        function loadData() {
+            users = JSON.parse(localStorage.getItem('users')) || users;
+            userProfile = JSON.parse(localStorage.getItem('userProfile')) || userProfile;
+            allPosts = JSON.parse(localStorage.getItem('allPosts')) || allPosts;
+            isLoggedIn = JSON.parse(localStorage.getItem('isLoggedIn')) || false;
+        }
+
+        function validateInput(username, password) {
+            if (!username || !password) {
+                alert("아이디와 비밀번호를 모두 입력해주세요.");
+                return false;
+            }
+            if (username === password) {
+                alert("아이디와 비밀번호는 같을 수 없습니다.");
+                return false;
+            }
+            return true;
+        }
+
+        function updateNavigation() {
+            const navRight = document.getElementById('nav-right');
+            if (isLoggedIn) {
+                navRight.innerHTML = `
+                    <a href="#" onclick="viewProfile()">내 프로필</a>
+                    <a href="#" onclick="logout()">로그아웃</a>
+                `;
+            } else {
+                navRight.innerHTML = `
+                    <a href="#" onclick="openModal('loginModal')">로그인</a>
+                    <a href="#" onclick="openModal('signupModal')">회원가입</a>
+                `;
+            }
+        }
+
+        function login() {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+
+            if (!validateInput(username, password)) return;
+
+            const user = users.find(u => u.username === username && u.password === password);
+
+            if (user) {
+                isLoggedIn = true;
+                userProfile.username = username;
+                updateNavigation();
+                alert("로그인 되었습니다!");
+                closeModal('loginModal');
+                saveData();
+            } else {
+                alert("아이디 또는 비밀번호가 잘못되었습니다.");
+            }
+        }
+
+        function signup() {
+            const username = document.getElementById('signup-username').value.trim();
+            const password = document.getElementById('signup-password').value.trim();
+
+            if (!validateInput(username, password)) return;
+
+            if (users.find(u => u.username === username)) {
+                alert("이미 존재하는 아이디입니다.");
+            } else {
+                users.push({ username, password });
+                alert("회원가입이 완료되었습니다! 로그인해주세요.");
+                closeModal('signupModal');
+                saveData();
+            }
+        }
+
+        function logout() {
+            isLoggedIn = false;
+            userProfile.username = "";
+            updateNavigation();
+            alert("로그아웃 되었습니다!");
+            saveData();
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            document.getElementById('overlay').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            document.getElementById('overlay').classList.remove('active');
+        }
+
+        function switchToSignup() {
+            closeModal('loginModal');
+            openModal('signupModal');
+        }
+
+        document.getElementById('overlay').onclick = (event) => {
+            const modals = document.querySelectorAll('.modal.active');
+            modals.forEach(modal => modal.classList.remove('active'));
+            document.getElementById('overlay').classList.remove('active');
+        };
+
+        function viewProfile() {
+            alert(`아이디: ${userProfile.username}\n게시물 개수: ${userProfile.posts.length}`);
+        }
+
+        function createPost() {
+            if (!isLoggedIn) {
+                alert("로그인이 필요합니다! 로그인 창으로 이동합니다.");
+                openModal('loginModal');
+                return;
+            }
+
+            const postTitle = prompt("게시물 제목을 입력하세요:");
+            const postContent = prompt("게시물 내용을 입력하세요:");
+
+            if (postTitle && postContent) {
+                const postId = allPosts.length;
+                const post = { id: postId, title: postTitle, content: postContent, views: 0 };
+                allPosts.push(post);
+                userProfile.posts.push(post);
+
+                alert("게시물이 추가되었습니다.");
+                updatePostList();
+                updatePopularPosts();
+                saveData();
+            } else {
+                alert("제목과 내용을 모두 입력해야 합니다.");
+            }
+        }
+
+        function updatePostList() {
+            const postSection = document.getElementById('post-list');
+            postSection.innerHTML = '';
+
+            allPosts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'post';
+                postElement.innerHTML = `
+                    <h3 onclick="togglePostContent(${post.id})">${post.title}</h3>
+                    <p id="post-content-${post.id}" style="display: none;">${post.content}</p>
+                    <small>조회수: <span id="views-${post.id}">${post.views}</span></small>
+                `;
+                postSection.appendChild(postElement);
+            });
+        }
+
+        function togglePostContent(postId) {
+            const contentElement = document.getElementById(`post-content-${postId}`);
+            if (contentElement) {
+                contentElement.style.display = contentElement.style.display === 'none' ? 'block' : 'none';
+                if (contentElement.style.display === 'block') {
+                    const post = allPosts.find(p => p.id === postId);
+                    if (post) {
+                        post.views++;
+                        document.getElementById(`views-${postId}`).textContent = post.views;
+                        updatePopularPosts();
+                        saveData();
+                    }
+                }
+            }
+        }
+
+        function updatePopularPosts() {
+            const popularPosts = allPosts.sort((a, b) => b.views - a.views).slice(0, 5);
+            const popularSection = document.getElementById('popular-posts');
+            popularSection.innerHTML = '';
+
+            popularPosts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.className = 'post';
+                postElement.innerHTML = `
+                    <h3 onclick="togglePostContent(${post.id})">${post.title}</h3>
+                    <p id="post-content-popular-${post.id}" style="display: none;">${post.content}</p>
+                    <small>조회수: ${post.views}</small>
+                `;
+                popularSection.appendChild(postElement);
+            });
+        }
+
+        window.onload = function() {
+            loadData();
+            updateNavigation();
+            updatePostList();
+            updatePopularPosts();
+        };
+    </script>
+</head>
+<body>
+    <header>
+        <h1>문구점 - 학생 커뮤니티</h1>
+    </header>
+    <nav>
+        <div>로고</div>
+        <div id="nav-right">
+            <a href="#" onclick="openModal('loginModal')">로그인</a>
+            <a href="#" onclick="openModal('signupModal')">회원가입</a>
+        </div>
+    </nav>
+    <main>
+        <section id="post-list" class="content">
+            <h2>게시물 목록</h2>
+        </section>
+        <section id="popular-posts" class="content">
+            <h2>인기 게시물</h2>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2025 문구점 - 학생 커뮤니티</p>
+    </footer>
+
+    <div id="loginModal" class="modal">
+        <button class="close-button" onclick="closeModal('loginModal')">×</button>
+        <h2 class="modal-header">로그인</h2>
+        <input type="text" id="login-username" placeholder="아이디">
+        <input type="password" id="login-password" placeholder="비밀번호">
+        <button onclick="login()">로그인</button>
+        <button onclick="switchToSignup()">회원가입</button>
+    </div>
+
+    <div id="signupModal" class="modal">
+        <button class="close-button" onclick="closeModal('signupModal')">×</button>
+        <h2 class="modal-header">회원가입</h2>
+        <input type="text" id="signup-username" placeholder="아이디">
+        <input type="password" id="signup-password" placeholder="비밀번호">
+        <button onclick="signup()">회원가입 완료</button>
+    </div>
+
+    <div id="overlay" class="overlay"></div>
+</body>
+</html>
